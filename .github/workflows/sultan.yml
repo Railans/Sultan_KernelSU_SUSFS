@@ -172,8 +172,8 @@ jobs:
           echo "CONFIG_IP_SET_HASH_NETIFACE=y" >> ./arch/arm64/configs/${{ inputs.codename }}_defconfig
           echo "CONFIG_IP_SET_LIST_SET=y" >> ./arch/arm64/configs/${{ inputs.codename }}_defconfig
           
-          - name: Configure NTFS Support
-          run: |
+      - name: Configure NTFS Support
+        run: |
           cd "$CONFIG"
           # NTFS support
           echo "# NTFS support" >> ./arch/arm64/configs/${{ inputs.codename }}_defconfig
