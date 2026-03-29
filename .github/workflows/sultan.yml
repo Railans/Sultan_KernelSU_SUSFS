@@ -233,8 +233,20 @@ jobs:
           echo "Changing to configuration directory: $CONFIG..."
           cd "$CONFIG"
 
-          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc -j$(nproc --all) ${{ inputs.codename }}_defconfig
-          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc -j$(nproc --all)
+          # Определяем флаги для игнорирования ошибок SUSFS
+          # -Wno-error превращает критические ошибки в предупреждения (warnings)
+          EXTRA_FLAGS="KCFLAGS='-Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=unused-function'"
+
+          # 1. Конфигурация
+          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- \
+          CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc \
+          -j$(nproc --all) ${{ inputs.codename }}_defconfig
+
+          # 2. Сама сборка с применением флагов
+          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- \
+          CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc \
+          $EXTRA_FLAGS \
+          -j$(nproc --all)
 
       - name: Copy Images
         run: |
