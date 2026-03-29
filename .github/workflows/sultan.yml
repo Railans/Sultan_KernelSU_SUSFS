@@ -101,39 +101,6 @@ jobs:
           cp ../kernel_patches/sultan/sys.c_fix.patch ./
           patch -p1 < sys.c_fix.patch
 
-      - name: Setup AmneziaWG (Standalone Protocol)
-        run: |
-          cd "$CONFIG"
-          curl -LO https://codeload.github.com/amnezia-vpn/amneziawg-linux-kernel-module/zip/refs/tags/v1.0.20260322
-          unzip v1.0.20260322
-          
-          # Создаем уникальный путь в сетевом стеке
-          AWG_DIR="net/amneziawg"
-          mkdir -p "$AWG_DIR"
-          cp -r amneziawg-linux-kernel-module-1.0.20260322/src/* "$AWG_DIR/"
-          
-          # Удаляем compat (для 6.1 он не нужен) и тесты
-          rm -rf "$AWG_DIR/tests" "$AWG_DIR/uapi"
-          mv "$AWG_DIR/Kbuild" "$AWG_DIR/Makefile"
-          sed -i 's/^include $(src)\/compat\/Kbuild.include/# include $(src)\/compat\/Kbuild.include/g' "$AWG_DIR/Makefile"
-
-          # КЛЮЧЕВОЙ МОМЕНТ: Массовое переименование внутри модуля
-          # Мы меняем CONFIG_WIREGUARD на CONFIG_AMNEZIAWG во всех файлах новой папки
-          find "$AWG_DIR" -type f -exec sed -i 's/CONFIG_WIREGUARD/CONFIG_AMNEZIAWG/g' {} +
-          
-          # Регистрация в ядре (добавляем наш новый протокол в Makefile сети)
-          echo "obj-\$(CONFIG_AMNEZIAWG) += amneziawg/" >> net/Makefile
-          
-          # Создаем Kconfig для AmneziaWG, чтобы ядро его увидело
-          echo 'config AMNEZIAWG' > "$AWG_DIR/Kconfig"
-          echo '    tristate "AmneziaWG support"' >> "$AWG_DIR/Kconfig"
-          echo '    select NET_UDP_TUNNEL' >> "$AWG_DIR/Kconfig"
-          echo '    select CRYPTO' >> "$AWG_DIR/Kconfig"
-          echo '    default y' >> "$AWG_DIR/Kconfig"
-
-          # Подключаем наш Kconfig к общему списку
-          sed -i '/menu "Networking options"/a source "net/amneziawg/Kconfig"' net/Kconfig
-
       - name: Configure KernelSU
         if: contains(matrix.features, 'wksu')
         run: |
@@ -207,46 +174,13 @@ jobs:
           echo "CONFIG_IP_SET_HASH_NETIFACE=y" >> ./arch/arm64/configs/${{ inputs.codename }}_defconfig
           echo "CONFIG_IP_SET_LIST_SET=y" >> ./arch/arm64/configs/${{ inputs.codename }}_defconfig
 
-      - name: Inject AmneziaWG Config
-        run: |
-          cd "$CONFIG"
-          DEFCONFIG="./arch/arm64/configs/${{ inputs.codename }}_defconfig"
-          
-          # Добавляем наш новый флаг
-          echo "CONFIG_AMNEZIAWG=y" >> "$DEFCONFIG"
-          
-          # Сетевые зависимости для Junk/Magic пакетов
-          echo "CONFIG_NETFILTER_XT_MATCH_COMMENT=y" >> "$DEFCONFIG"
-          echo "CONFIG_NETFILTER_XT_MARK=y" >> "$DEFCONFIG"
-
-      - name: Run sed and perl Commands
-        if: matrix.features == 'wksu-susfs'
-        run: |
-          echo "Changing to configuration directory: $CONFIG..."
-          cd "$CONFIG"
-
-          echo "Running sed commands..."
-          sed -i 's/CONFIG_LOCALVERSION="-Sultan"/CONFIG_LOCALVERSION="-Sultan-Wild"/' ./arch/arm64/configs/${{ inputs.codename }}_defconfig
-
       - name: Build the Kernel
         run: |
           echo "Changing to configuration directory: $CONFIG..."
           cd "$CONFIG"
 
-          # Определяем флаги для игнорирования ошибок SUSFS
-          # -Wno-error превращает критические ошибки в предупреждения (warnings)
-          EXTRA_FLAGS="KCFLAGS='-Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=unused-function'"
-
-          # 1. Конфигурация
-          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- \
-          CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc \
-          -j$(nproc --all) ${{ inputs.codename }}_defconfig
-
-          # 2. Сама сборка с применением флагов
-          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- \
-          CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc \
-          $EXTRA_FLAGS \
-          -j$(nproc --all)
+          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc -j$(nproc --all) ${{ inputs.codename }}_defconfig
+          make CROSS_COMPILE=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux- CC=$GITHUB_WORKSPACE/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc -j$(nproc --all)
 
       - name: Copy Images
         run: |
